@@ -3,432 +3,488 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Night Shift - Prototype</title>
+    <title>Night Shift - Facility Update</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; color: white; user-select: none; }
-        #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; text-shadow: 2px 2px 0px #000; }
-        h2 { color: #ff3333; margin: 0 0 10px 0; letter-spacing: 2px; }
-        .hud-text { font-size: 1.2rem; margin-bottom: 5px; font-weight: bold; }
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; background: white; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; mix-blend-mode: difference; }
-        
-        #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 12, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 20; text-align: center; }
-        h1 { color: #ff3333; font-size: 4rem; text-transform: uppercase; margin-bottom: 10px; text-shadow: 4px 4px 0px #440000; }
-        p { max-width: 600px; line-height: 1.5; font-size: 1.1rem; margin-bottom: 15px; color: #ccc; }
-        button { margin-top: 20px; padding: 15px 40px; font-size: 1.5rem; cursor: pointer; font-family: 'Courier New', Courier, monospace; font-weight: bold; background: #222; color: #fff; border: 2px solid #555; transition: 0.2s; }
-        button:hover { background: #ff3333; border-color: #ff3333; color: black; }
-        
-        #gameover { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 30; flex-direction: column; justify-content: center; align-items: center; font-weight: bold; background: #000; }
-        #gameover h1 { font-size: 5rem; margin: 0; }
-        
-        #jumpscare { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: red; z-index: 40; }
+        :root {
+            --theme-color: #ffb347;
+            --danger-color: #ff3333;
+            --safe-color: #44ff44;
+            --bg-color: #050505;
+        }
+
+        body, html {
+            margin: 0; padding: 0; overflow: hidden; background: var(--bg-color);
+            font-family: 'Share Tech Mono', monospace; color: var(--theme-color); user-select: none;
+        }
+
+        #crt-overlay {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%; z-index: 50; pointer-events: none; opacity: 0.5;
+        }
+
+        #vignette {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.9) 100%);
+            z-index: 49; pointer-events: none;
+        }
+
+        #ui { position: absolute; top: 2rem; left: 2rem; z-index: 10; pointer-events: none; text-shadow: 0 0 5px var(--theme-color); }
+        .header h2 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; }
+        .stats { margin-top: 1rem; padding-left: 10px; border-left: 2px solid var(--theme-color); }
+        #timer, #tasks { font-size: 1.2rem; margin-bottom: 5px; }
+
+        .status-good { color: var(--safe-color); text-shadow: 0 0 5px var(--safe-color); }
+        .status-bad { color: var(--danger-color); text-shadow: 0 0 5px var(--danger-color); animation: blink 1s infinite; }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 10; pointer-events: none; display: flex; justify-content: center; align-items: center;
+        }
+        .dot { width: 4px; height: 4px; background: rgba(255, 255, 255, 0.8); border-radius: 50%; }
+        .ring { position: absolute; width: 20px; height: 20px; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 50%; }
+
+        #menu, #gameover {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 5, 5, 0.85); backdrop-filter: blur(4px);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
+        }
+
+        #gameover { display: none; }
+        .menu-content { background: rgba(20, 20, 20, 0.9); padding: 3rem; border: 1px solid #333; box-shadow: 0 0 20px rgba(0,0,0,0.8); text-align: center; max-width: 600px; }
+        h1 { margin: 0; font-size: 4rem; letter-spacing: 4px; color: #fff; text-shadow: 0 0 10px #fff; }
+        .divider { width: 100%; height: 2px; background: var(--theme-color); margin: 20px 0; }
+        .warning { color: var(--danger-color); font-weight: bold; }
+        .instructions { text-align: left; line-height: 1.8; font-size: 1.1rem; color: #ccc; margin-bottom: 2rem; }
+        .instructions span { color: var(--theme-color); font-weight: bold; }
+
+        button { background: transparent; color: var(--theme-color); border: 2px solid var(--theme-color); padding: 15px 40px; font-size: 1.5rem; font-family: 'Share Tech Mono', monospace; cursor: pointer; transition: all 0.2s ease; text-transform: uppercase; }
+        button:hover { background: var(--theme-color); color: #000; box-shadow: 0 0 15px var(--theme-color); }
+
+        #jumpscare {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 200;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><rect width="100%" height="100%" fill="red"/><text x="50%" y="50%" font-size="100" fill="black" text-anchor="middle" dominant-baseline="middle" font-family="monospace">SYSTEM FAILURE</text></svg>');
+            background-size: cover;
+        }
     </style>
 </head>
 <body>
+    <div id="crt-overlay"></div>
+    <div id="vignette"></div>
+
     <div id="ui">
-        <h2>NIGHT SHIFT</h2>
-        <div id="timer" class="hud-text">Shift Ends In: 60s</div>
-        <div id="tasks" class="hud-text">Tasks: 0/3 Cargo Secured</div>
-        <div id="chaos" class="hud-text" style="color: #44ff44;">Status: STABLE</div>
-        <div id="hint" class="hud-text" style="color: #aaaaaa; font-size: 0.9rem; margin-top: 15px;">Click boxes to drag them. Shift to run (makes noise!).</div>
+        <div class="header">
+            <h2>NIGHT SHIFT_OS</h2>
+            <div id="chaos" class="status-good">[SYS: ONLINE]</div>
+        </div>
+        <div class="stats">
+            <div id="timer">T-MINUS: 180s</div>
+            <div id="tasks">QUOTA: 0/3</div>
+        </div>
     </div>
     
-    <div id="crosshair"></div>
+    <div id="crosshair">
+        <div class="dot"></div>
+        <div class="ring"></div>
+    </div>
     
     <div id="menu">
-        <h1>Night Shift</h1>
-        <p><strong>GOAL:</strong> Drag the 3 Yellow Cargo boxes to the Green Extraction Zone before the timer runs out.</p>
-        <p><strong>CONTROLS:</strong> WASD to move. SPACE to jump. CLICK on a box to tether/drag it (physics are intentionally janky!). SHIFT to sprint.</p>
-        <p><strong>WARNING:</strong> The facility is unstable. Chaos events will occur. The Shadow hears you if you move too fast or drop things.</p>
-        <button id="startBtn">START SHIFT</button>
+        <div class="menu-content">
+            <h1>NIGHT SHIFT</h1>
+            <div class="divider"></div>
+            <p class="warning">WARNING: Procedural audio active. Adjust volume.</p>
+            <div class="instructions">
+                <p><span>[OBJ]</span> Find 3 Cargo Boxes in the facility. Drag to Green Zone.</p>
+                <p><span>[MOV]</span> WASD to move. SHIFT to sprint.</p>
+                <p><span>[ACT]</span> CLICK to tether/drop cargo.</p>
+            </div>
+            <button id="startBtn">INITIALIZE SHIFT</button>
+        </div>
     </div>
 
     <div id="gameover">
-        <h1 id="endTitle">SHIFT OVER</h1>
-        <p id="endDesc" style="font-size: 1.5rem;"></p>
-        <button onclick="location.reload()">RESTART SHIFT</button>
+        <div class="menu-content">
+            <h1 id="endTitle">SHIFT OVER</h1>
+            <div class="divider"></div>
+            <p id="endDesc"></p>
+            <button id="restartBtn">REBOOT SYSTEM</button>
+        </div>
     </div>
 
     <div id="jumpscare"></div>
 
-    <!-- Load Dependencies -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
-
+    
     <script>
+        // --- PROCEDURAL AUDIO ENGINE ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let ambientOsc;
+
+        const SFX = {
+            playFootstep: () => {
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(80 + Math.random()*20, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            },
+            playDrop: () => {
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc.type = 'square'; osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+            },
+            playJumpscare: () => {
+                const osc1 = audioCtx.createOscillator(); const osc2 = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc1.type = 'sawtooth'; osc2.type = 'square';
+                osc1.frequency.setValueAtTime(100, audioCtx.currentTime); osc2.frequency.setValueAtTime(115, audioCtx.currentTime);
+                gain.gain.setValueAtTime(1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+                osc1.connect(gain); osc2.connect(gain); gain.connect(audioCtx.destination);
+                osc1.start(); osc2.start(); osc1.stop(audioCtx.currentTime + 1.5); osc2.stop(audioCtx.currentTime + 1.5);
+            },
+            startAmbience: () => {
+                if(ambientOsc) return;
+                ambientOsc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                ambientOsc.type = 'sine'; ambientOsc.frequency.setValueAtTime(30, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                ambientOsc.connect(gain); gain.connect(audioCtx.destination); ambientOsc.start();
+            }
+        };
+
         // --- GAME VARIABLES ---
         let scene, camera, renderer, world, controls;
-        let playerBody, monsterBody;
-        let monsterMesh;
-        let cargoItems = [];
-        let physicsObjects = [];
-        let grabConstraint = null;
-        let lastTime;
-        let shiftTime = 60;
-        let gameActive = false;
-        let canJump = true;
-        let flashlight;
-        
-        // Input state
-        const keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
-        
-        // UI Elements
-        const uiTimer = document.getElementById('timer');
-        const uiTasks = document.getElementById('tasks');
-        const uiChaos = document.getElementById('chaos');
+        let playerBody, monsterBody, monsterMesh;
+        let cargoItems = [], physicsObjects = [];
+        let grabConstraint = null, grabbedBody = null;
+        let lastTime, shiftTime = 180, gameActive = false, canJump = true;
+        let flashlight, walkTimer = 0;
+        let flickerLights = [];
 
-        // --- INITIALIZATION ---
+        let currentMoveVector = new THREE.Vector3();
+        let targetMoveVector = new THREE.Vector3();
+
+        const keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
+        const uiTimer = document.getElementById('timer'), uiTasks = document.getElementById('tasks'), uiChaos = document.getElementById('chaos');
+
         function init() {
-            // 1. Three.js Setup
             scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x050505, 0.06); // Creepy fog
+            scene.fog = new THREE.FogExp2(0x010101, 0.04); // Slightly less dense fog to see rooms
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
             
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            // Lighting
-            const ambient = new THREE.AmbientLight(0x222222);
-            scene.add(ambient);
-
-            flashlight = new THREE.SpotLight(0xffffff, 1, 20, Math.PI/4, 0.5, 1);
+            // Lighting Setup
+            scene.add(new THREE.AmbientLight(0x050505)); // Extremely dark base
+            
+            flashlight = new THREE.SpotLight(0xfff0e0, 2.0, 30, Math.PI/6, 0.5, 2);
             flashlight.castShadow = true;
             scene.add(flashlight);
 
-            // 2. Cannon.js Setup
+            // Physics Setup
             world = new CANNON.World();
-            world.gravity.set(0, -15, 0); // Slightly heavy gravity
+            world.gravity.set(0, -15, 0); 
             world.broadphase = new CANNON.NaiveBroadphase();
-            world.solver.iterations = 10;
+            world.solver.iterations = 20;
 
-            // Materials
-            const slipperyMat = new CANNON.Material();
-            const heavyMat = new CANNON.Material();
-            const contactMat = new CANNON.ContactMaterial(slipperyMat, heavyMat, { friction: 0.1, restitution: 0.1 });
-            world.addContactMaterial(contactMat);
+            // Materials for smooth, non-bouncy FPS movement
+            const defaultMat = new CANNON.Material();
+            const playerMat = new CANNON.Material();
+            
+            // Player vs World: No friction, no bounciness
+            const playerContactMat = new CANNON.ContactMaterial(playerMat, defaultMat, { friction: 0.0, restitution: 0.0 });
+            world.addContactMaterial(playerContactMat);
 
-            // 3. Environment Generation
-            createMap(heavyMat);
+            createFacility(defaultMat);
 
-            // 4. Player Setup
-            const radius = 1;
-            playerBody = new CANNON.Body({ mass: 5, material: slipperyMat, shape: new CANNON.Sphere(radius) });
-            playerBody.position.set(0, 5, 0);
-            playerBody.linearDamping = 0.9;
+            // Player Setup - Fixed Box to prevent bouncing/rolling
+            playerBody = new CANNON.Body({ mass: 60, material: playerMat, shape: new CANNON.Box(new CANNON.Vec3(0.5, 1, 0.5)) });
+            playerBody.position.set(20, 2, 20); // Spawn in extraction room
+            playerBody.fixedRotation = true;
+            playerBody.updateMassProperties();
+            playerBody.linearDamping = 0.9; // Stops ice-skating
             world.addBody(playerBody);
 
             controls = new THREE.PointerLockControls(camera, document.body);
             
-            // 5. Monster Setup
-            monsterBody = new CANNON.Body({ mass: 10, shape: new CANNON.Box(new CANNON.Vec3(0.75, 2, 0.75)) });
-            monsterBody.position.set(15, 2, 15);
+            // Monster
+            monsterBody = new CANNON.Body({ mass: 10, shape: new CANNON.Box(new CANNON.Vec3(0.75, 2, 0.75)), material: playerMat });
+            monsterBody.position.set(-20, 2, -20);
+            monsterBody.fixedRotation = true;
+            monsterBody.linearDamping = 0.9;
             world.addBody(monsterBody);
             
-            const monsterGeo = new THREE.BoxGeometry(1.5, 4, 1.5);
-            const monsterMat = new THREE.MeshBasicMaterial({ color: 0x000000 }); // Pitch black
-            monsterMesh = new THREE.Mesh(monsterGeo, monsterMat);
+            monsterMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.5), new THREE.MeshBasicMaterial({ color: 0x000000 }));
             scene.add(monsterMesh);
 
-            // 6. Extraction Zone
-            const extGeo = new THREE.PlaneGeometry(8, 8);
-            const extMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
-            const extZone = new THREE.Mesh(extGeo, extMat);
-            extZone.rotation.x = -Math.PI / 2;
-            extZone.position.set(-15, 0.1, -15);
-            scene.add(extZone);
-
-            // 7. Event Listeners
-            window.addEventListener('resize', onWindowResize);
-            document.addEventListener('keydown', (e) => {
-                if(e.code === 'KeyW') keys.w = true;
-                if(e.code === 'KeyA') keys.a = true;
-                if(e.code === 'KeyS') keys.s = true;
-                if(e.code === 'KeyD') keys.d = true;
-                if(e.code === 'Space' && canJump) { playerBody.velocity.y = 8; canJump = false; }
-                if(e.code === 'ShiftLeft') keys.shift = true;
-            });
-            document.addEventListener('keyup', (e) => {
-                if(e.code === 'KeyW') keys.w = false;
-                if(e.code === 'KeyA') keys.a = false;
-                if(e.code === 'KeyS') keys.s = false;
-                if(e.code === 'KeyD') keys.d = false;
-                if(e.code === 'ShiftLeft') keys.shift = false;
-            });
-            
-            playerBody.addEventListener("collide", (e) => {
-                const contactNormal = new CANNON.Vec3();
-                e.contact.ni.negate(contactNormal);
-                if (contactNormal.dot(new CANNON.Vec3(0, 1, 0)) > 0.5) canJump = true;
-            });
-
-            document.addEventListener('mousedown', tryGrab);
-
-            document.getElementById('startBtn').addEventListener('click', () => {
-                controls.lock();
-            });
-
-            controls.addEventListener('lock', () => {
-                document.getElementById('menu').style.display = 'none';
-                if (!gameActive) startGame();
-            });
-            controls.addEventListener('unlock', () => {
-                if (gameActive) document.getElementById('menu').style.display = 'flex';
-            });
+            setupInput();
         }
 
-        function createMap(mat) {
+        function createFacility(mat) {
+            // Textures/Colors
+            const floorColor = 0x111111;
+            const wallColor = 0x1a1a1a;
+            const ceilingColor = 0x080808;
+
             // Floor
-            const groundShape = new CANNON.Plane();
-            const groundBody = new CANNON.Body({ mass: 0, shape: groundShape });
+            const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: mat });
             groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
             world.addBody(groundBody);
             
-            const gridHelper = new THREE.GridHelper(50, 50, 0x333333, 0x111111);
-            gridHelper.position.y = 0.01;
-            scene.add(gridHelper);
+            const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.9 }));
+            floorMesh.rotation.x = -Math.PI / 2;
+            floorMesh.receiveShadow = true;
+            scene.add(floorMesh);
 
-            // Walls (Bounding Box)
-            createWall(0, 5, -25, 50, 10, 1, mat);
-            createWall(0, 5, 25, 50, 10, 1, mat);
-            createWall(-25, 5, 0, 1, 10, 50, mat);
-            createWall(25, 5, 0, 1, 10, 50, mat);
+            // Ceiling (Creates claustrophobia)
+            const ceilingMesh = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: ceilingColor, roughness: 1.0 }));
+            ceilingMesh.rotation.x = Math.PI / 2;
+            ceilingMesh.position.y = 8;
+            scene.add(ceilingMesh);
 
-            // Obstacles
-            createWall(5, 2, 5, 10, 4, 2, mat);
-            createWall(-5, 3, 10, 4, 6, 4, mat);
+            const addWall = (x, z, w, d) => {
+                const h = 8; // Full ceiling height
+                const b = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(w/2, h/2, d/2)), material: mat });
+                b.position.set(x, h/2, z); world.addBody(b);
+                const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: wallColor }));
+                m.position.copy(b.position); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+            };
 
-            // Cargo (Tasks)
+            const addPillar = (x, z) => {
+                const b = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(1, 4, 1)), material: mat });
+                b.position.set(x, 4, z); world.addBody(b);
+                const m = new THREE.Mesh(new THREE.BoxGeometry(2, 8, 2), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+                m.position.copy(b.position); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+            }
+
+            // Facility Perimeter [-30 to 30]
+            addWall(0, -30, 60, 2); addWall(0, 30, 60, 2);
+            addWall(-30, 0, 2, 60); addWall(30, 0, 2, 60);
+
+            // Internal Level Design (Corridors and Rooms)
+            addWall(0, 10, 40, 2);  // Central horizontal divider
+            addWall(10, -10, 2, 40); // Central vertical divider
+
+            // Openings/Doors (Gaps in walls)
+            addPillar(-5, 10); addPillar(5, 10); // Archway
+            addPillar(10, 5); addPillar(10, 15);
+
+            // Ambience: Emergency Lights in Facility
+            const addLight = (x, z, color, intensity) => {
+                const light = new THREE.PointLight(color, intensity, 25);
+                light.position.set(x, 7, z);
+                scene.add(light);
+                flickerLights.push(light);
+            };
+
+            addLight(20, 20, 0x44ff44, 1); // Green extraction light
+            addLight(-20, -20, 0xff3333, 1.5); // Red server room
+            addLight(-20, 20, 0xffaa00, 1); // Orange storage
+            addLight(20, -20, 0x3366ff, 1); // Blue control room
+
+            // Extraction Zone (Visual)
+            const extZone = new THREE.Mesh(
+                new THREE.BoxGeometry(8, 0.2, 8), 
+                new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: 0.3 })
+            );
+            extZone.position.set(20, 0.1, 20); // Top right room
+            scene.add(extZone);
+
+            // Cargo placement (Scattered in other rooms)
+            const cargoSpawns = [[-20, -20], [-20, 20], [20, -20]];
             for(let i=0; i<3; i++) {
-                const size = 1;
-                const cBody = new CANNON.Body({ mass: 3, shape: new CANNON.Box(new CANNON.Vec3(size/2, size/2, size/2)) });
-                cBody.position.set(Math.random() * 20 - 10, 5, Math.random() * 20 - 10);
-                world.addBody(cBody);
-
-                const cMesh = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshStandardMaterial({ color: 0xffcc00 }));
-                cMesh.castShadow = true;
-                scene.add(cMesh);
-
-                physicsObjects.push({ body: cBody, mesh: cMesh });
-                cargoItems.push({ body: cBody, mesh: cMesh });
+                const b = new CANNON.Body({ mass: 15, shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)), material: mat, linearDamping: 0.5 });
+                b.position.set(cargoSpawns[i][0] + Math.random()*2, 2, cargoSpawns[i][1] + Math.random()*2);
+                world.addBody(b);
+                const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xffb347, roughness: 0.8 }));
+                m.castShadow = true; scene.add(m);
+                physicsObjects.push({ body: b, mesh: m }); 
+                cargoItems.push({ body: b, mesh: m });
             }
         }
 
-        function createWall(x, y, z, w, h, d, mat) {
-            const body = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(w/2, h/2, d/2)), material: mat });
-            body.position.set(x, y, z);
-            world.addBody(body);
-            
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-            mesh.position.copy(body.position);
-            scene.add(mesh);
+        function setupInput() {
+            window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+            document.addEventListener('keydown', (e) => {
+                if(e.code==='KeyW') keys.w=true; if(e.code==='KeyA') keys.a=true;
+                if(e.code==='KeyS') keys.s=true; if(e.code==='KeyD') keys.d=true;
+                if(e.code==='Space' && canJump) { playerBody.velocity.y = 7; canJump = false; }
+                if(e.code==='ShiftLeft') keys.shift=true;
+            });
+            document.addEventListener('keyup', (e) => {
+                if(e.code==='KeyW') keys.w=false; if(e.code==='KeyA') keys.a=false;
+                if(e.code==='KeyS') keys.s=false; if(e.code==='KeyD') keys.d=false;
+                if(e.code==='ShiftLeft') keys.shift=false;
+            });
+            playerBody.addEventListener("collide", (e) => { if (e.contact.ni.y < -0.5) canJump = true; });
+            document.addEventListener('mousedown', tryGrab);
+            document.getElementById('startBtn').addEventListener('click', () => controls.lock());
+            document.getElementById('restartBtn').addEventListener('click', () => location.reload());
+
+            controls.addEventListener('lock', () => { document.getElementById('menu').style.display = 'none'; if (!gameActive) startGame(); });
         }
 
-        // --- CORE GAME LOGIC ---
         function startGame() {
-            gameActive = true;
-            lastTime = performance.now();
+            gameActive = true; lastTime = performance.now();
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            SFX.startAmbience();
             
-            // Timers
-            const timerInt = setInterval(() => {
-                if(!gameActive) return clearInterval(timerInt);
-                shiftTime--;
-                uiTimer.innerText = `Shift Ends In: ${shiftTime}s`;
+            setInterval(() => {
+                if(!gameActive) return;
+                shiftTime--; uiTimer.innerText = `T-MINUS: ${shiftTime}s`;
                 if (shiftTime <= 0) endGame(checkWin());
             }, 1000);
 
-            // Chaos System
-            const chaosInt = setInterval(() => {
-                if(!gameActive) return clearInterval(chaosInt);
-                triggerChaos();
-            }, 12000);
-
+            // Dynamic Chaos / Flickering Lights
+            setInterval(() => {
+                if(!gameActive) return;
+                if(Math.random() > 0.7) {
+                    uiChaos.innerText = "[SYS: ANOMALY]"; uiChaos.className = "status-bad";
+                    flashlight.intensity = 0.2;
+                    flickerLights.forEach(l => l.intensity = 0.1);
+                    setTimeout(() => { 
+                        flashlight.intensity = 2.0; 
+                        flickerLights.forEach(l => l.intensity = 1.0);
+                        uiChaos.innerText = "[SYS: ONLINE]"; uiChaos.className = "status-good";
+                    }, 4000);
+                }
+            }, 10000);
             animate();
         }
 
-        function triggerChaos() {
-            const events = ["GRAVITY FLUCTUATION", "POLTERGEIST", "SYSTEM FAILURE"];
-            const ev = events[Math.floor(Math.random() * events.length)];
-            
-            uiChaos.innerText = `Status: ${ev}`;
-            uiChaos.style.color = "#ff3333";
-
-            if (ev === "GRAVITY FLUCTUATION") {
-                world.gravity.set(0, 3, 0); // Everything floats
-                setTimeout(() => { 
-                    world.gravity.set(0, -15, 0); 
-                    resetChaosUI(); 
-                }, 3000);
-            } else if (ev === "POLTERGEIST") {
-                cargoItems.forEach(item => {
-                    item.body.velocity.set((Math.random()-0.5)*15, 10, (Math.random()-0.5)*15);
-                });
-                setTimeout(() => resetChaosUI(), 2000);
-            } else if (ev === "SYSTEM FAILURE") {
-                scene.fog.density = 0.2; // Pitch black
-                setTimeout(() => { 
-                    scene.fog.density = 0.06; 
-                    resetChaosUI(); 
-                }, 4000);
-            }
-        }
-
-        function resetChaosUI() {
-            if(gameActive) {
-                uiChaos.innerText = "Status: STABLE";
-                uiChaos.style.color = "#44ff44";
-            }
-        }
-
-        // --- INTERACTION & PHYSICS CHAOS ---
         function tryGrab() {
             if (!controls.isLocked) return;
-
-            // If already holding, drop it
             if (grabConstraint) {
                 world.removeConstraint(grabConstraint);
-                grabConstraint = null;
-                return;
+                grabConstraint = null; grabbedBody = null; SFX.playDrop(); return;
             }
 
-            // Raycast to find box
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            
-            const cargoMeshes = cargoItems.map(c => c.mesh);
-            const intersects = raycaster.intersectObjects(cargoMeshes);
+            const intersects = raycaster.intersectObjects(cargoItems.map(c => c.mesh));
 
-            if (intersects.length > 0 && intersects[0].distance < 6) {
-                const targetMesh = intersects[0].object;
-                const targetData = cargoItems.find(c => c.mesh === targetMesh);
-                
-                // Physics-based dragging (creates wobbly, chaotic Lethal Company vibe)
-                grabConstraint = new CANNON.DistanceConstraint(playerBody, targetData.body, 3);
+            if (intersects.length > 0 && intersects[0].distance < 5) {
+                grabbedBody = cargoItems.find(c => c.mesh === intersects[0].object).body;
+                grabConstraint = new CANNON.PointToPointConstraint(playerBody, new CANNON.Vec3(0, 0, -2.5), grabbedBody, new CANNON.Vec3(0, 0, 0));
                 world.addConstraint(grabConstraint);
             }
         }
 
         function updateAI() {
             const dist = monsterBody.position.distanceTo(playerBody.position);
-            const speed = playerBody.velocity.length();
+            const speed = Math.abs(playerBody.velocity.x) + Math.abs(playerBody.velocity.z);
             
-            // Reacts to noise (sprinting or close proximity)
-            if (dist < 20 && (keys.shift || speed > 6)) {
-                monsterMesh.material.color.setHex(0x330000); // Glows slightly red when angry
-                const dir = playerBody.position.vsub(monsterBody.position);
-                dir.normalize();
-                // Push monster towards player
-                monsterBody.velocity.x = dir.x * 6;
-                monsterBody.velocity.z = dir.z * 6;
+            // Monster is aggressive if you sprint or if it's close
+            if (dist < 25 && (keys.shift || speed > 8 || dist < 12)) {
+                const dir = playerBody.position.vsub(monsterBody.position); dir.y = 0; dir.normalize();
+                
+                // Pure pursuit logic
+                monsterBody.velocity.x = dir.x * 9; 
+                monsterBody.velocity.z = dir.z * 9;
+                monsterMesh.scale.y = 1 + Math.sin(performance.now() * 0.015) * 0.15; // aggressive animation
             } else {
-                monsterMesh.material.color.setHex(0x000000);
-                monsterBody.velocity.x *= 0.9; // Stop moving
-                monsterBody.velocity.z *= 0.9;
+                monsterMesh.scale.y = 1;
             }
 
-            // Sync visual
             monsterMesh.position.copy(monsterBody.position);
-
-            // Jumpscare collision
-            if (dist < 2.5 && gameActive) {
-                triggerJumpscare();
-            }
+            if (dist < 2.5 && gameActive) triggerJumpscare();
         }
 
         function triggerJumpscare() {
-            gameActive = false;
-            controls.unlock();
-            const scare = document.getElementById('jumpscare');
-            scare.style.display = 'block';
-            setTimeout(() => {
-                scare.style.display = 'none';
-                endGame(false, "THE SHADOW CAUGHT YOU.");
-            }, 300);
+            gameActive = false; controls.unlock(); if(ambientOsc) ambientOsc.stop();
+            SFX.playJumpscare(); document.getElementById('jumpscare').style.display = 'block';
+            setTimeout(() => { document.getElementById('jumpscare').style.display = 'none'; endGame(false, "FATAL ENCOUNTER."); }, 1500);
         }
 
         function checkWin() {
-            let secured = 0;
-            const extZoneCenter = new CANNON.Vec3(-15, 0, -15);
-            
-            cargoItems.forEach(item => {
-                if (item.body.position.distanceTo(extZoneCenter) < 5) secured++;
-            });
-            
-            uiTasks.innerText = `Tasks: ${secured}/3 Cargo Secured`;
+            let secured = 0; const extZoneCenter = new CANNON.Vec3(20, 0, 20);
+            cargoItems.forEach(item => { if (item.body.position.distanceTo(extZoneCenter) < 5) secured++; });
+            uiTasks.innerText = `QUOTA: ${secured}/3`;
             return secured >= 3;
         }
 
         function endGame(won, reason = "") {
-            gameActive = false;
-            controls.unlock();
-            
-            const screen = document.getElementById('gameover');
-            screen.style.display = 'flex';
-            screen.style.backgroundColor = won ? "#003300" : "#330000";
-            
-            document.getElementById('endTitle').innerText = won ? "SHIFT SURVIVED" : "SHIFT FAILED";
-            document.getElementById('endTitle').style.color = won ? "#44ff44" : "#ff3333";
-            document.getElementById('endDesc').innerText = won ? "You hit your quota." : (reason || "You didn't secure the cargo in time.");
+            gameActive = false; controls.unlock(); if(ambientOsc) ambientOsc.stop();
+            document.getElementById('gameover').style.display = 'flex';
+            document.getElementById('endTitle').innerText = won ? "SHIFT COMPLETED" : "SHIFT FAILED";
+            document.getElementById('endTitle').style.color = won ? "var(--safe-color)" : "var(--danger-color)";
+            document.getElementById('endDesc').innerText = won ? "Quota met. Evac in progress." : (reason || "Failed to meet quota.");
         }
 
-        // --- MAIN LOOP ---
         function animate() {
-            if (!gameActive) return;
-            requestAnimationFrame(animate);
+            if (!gameActive) return; requestAnimationFrame(animate);
 
-            const time = performance.now();
-            const delta = (time - lastTime) / 1000;
-            lastTime = time;
+            const time = performance.now(); const delta = Math.min((time - lastTime) / 1000, 0.1); lastTime = time;
 
-            // Step Physics
             world.step(1 / 60, delta, 3);
 
-            // Sync Physics to Visuals
             physicsObjects.forEach(obj => {
                 obj.mesh.position.copy(obj.body.position);
                 obj.mesh.quaternion.copy(obj.body.quaternion);
             });
 
-            // Player Movement (Velocity based for snappy but physical feel)
+            // --- FIXED FPS MOVEMENT ---
             if (controls.isLocked) {
-                const inputVelocity = new THREE.Vector3();
-                inputVelocity.z = Number(keys.s) - Number(keys.w);
-                inputVelocity.x = Number(keys.d) - Number(keys.a);
-                inputVelocity.normalize();
+                const dir = new THREE.Vector3();
+                camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
+                const right = new THREE.Vector3();
+                right.crossVectors(camera.up, dir).normalize();
+
+                const moveZ = (Number(keys.s) - Number(keys.w));
+                const moveX = (Number(keys.d) - Number(keys.a));
                 
-                if (keys.shift) inputVelocity.multiplyScalar(1.8);
+                // MUCH faster base speeds
+                const speed = keys.shift ? 16 : 9; 
+                
+                targetMoveVector.set(0,0,0).addScaledVector(dir, moveZ).addScaledVector(right, moveX).normalize().multiplyScalar(speed);
 
-                // Align input to camera direction
-                inputVelocity.applyEuler(new THREE.Euler(0, camera.rotation.y, 0));
+                // Very high Lerp factor removes the "sluggish" delay.
+                currentMoveVector.lerp(targetMoveVector, 15 * delta);
 
-                playerBody.velocity.x = inputVelocity.x * 8;
-                playerBody.velocity.z = inputVelocity.z * 8;
+                // Directly apply X and Z, leave Y (gravity/jump) alone to prevent bouncy camera.
+                playerBody.velocity.x = currentMoveVector.x;
+                playerBody.velocity.z = currentMoveVector.z;
+                
+                // Reduced camera bobbing amplitude to remove "jumping" illusion
+                if(Math.abs(currentMoveVector.x) > 1 || Math.abs(currentMoveVector.z) > 1) {
+                    walkTimer += delta * (keys.shift ? 20 : 12);
+                    camera.position.y = playerBody.position.y + 0.8 + Math.sin(walkTimer) * 0.05; // Tightened bobbing
+                    if(Math.sin(walkTimer) < -0.9 && walkTimer % Math.PI < 0.2) SFX.playFootstep();
+                } else {
+                    camera.position.y = playerBody.position.y + 0.8;
+                }
             }
 
-            // Sync Camera to Player Body
-            camera.position.copy(playerBody.position);
-            camera.position.y += 0.8; // Eye level
+            camera.position.x = playerBody.position.x;
+            camera.position.z = playerBody.position.z;
 
-            // Flashlight follows camera
+            // Smoother Flashlight Sync
             flashlight.position.copy(camera.position);
-            flashlight.target.position.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()));
+            const targetDir = new THREE.Vector3(); camera.getWorldDirection(targetDir);
+            flashlight.target.position.copy(camera.position).add(targetDir);
             flashlight.target.updateMatrixWorld();
 
-            updateAI();
-            checkWin(); // Update UI tracker
-
+            updateAI(); checkWin();
             renderer.render(scene, camera);
         }
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        // Start
         init();
     </script>
 </body>
