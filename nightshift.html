@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Night Shift - Prototype</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; color: white; user-select: none; }
+        #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; text-shadow: 2px 2px 0px #000; }
+        h2 { color: #ff3333; margin: 0 0 10px 0; letter-spacing: 2px; }
+        .hud-text { font-size: 1.2rem; margin-bottom: 5px; font-weight: bold; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; background: white; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; mix-blend-mode: difference; }
+        
+        #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 12, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 20; text-align: center; }
+        h1 { color: #ff3333; font-size: 4rem; text-transform: uppercase; margin-bottom: 10px; text-shadow: 4px 4px 0px #440000; }
+        p { max-width: 600px; line-height: 1.5; font-size: 1.1rem; margin-bottom: 15px; color: #ccc; }
+        button { margin-top: 20px; padding: 15px 40px; font-size: 1.5rem; cursor: pointer; font-family: 'Courier New', Courier, monospace; font-weight: bold; background: #222; color: #fff; border: 2px solid #555; transition: 0.2s; }
+        button:hover { background: #ff3333; border-color: #ff3333; color: black; }
+        
+        #gameover { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 30; flex-direction: column; justify-content: center; align-items: center; font-weight: bold; background: #000; }
+        #gameover h1 { font-size: 5rem; margin: 0; }
+        
+        #jumpscare { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: red; z-index: 40; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h2>NIGHT SHIFT</h2>
+        <div id="timer" class="hud-text">Shift Ends In: 60s</div>
+        <div id="tasks" class="hud-text">Tasks: 0/3 Cargo Secured</div>
+        <div id="chaos" class="hud-text" style="color: #44ff44;">Status: STABLE</div>
+        <div id="hint" class="hud-text" style="color: #aaaaaa; font-size: 0.9rem; margin-top: 15px;">Click boxes to drag them. Shift to run (makes noise!).</div>
+    </div>
+    
+    <div id="crosshair"></div>
+    
+    <div id="menu">
+        <h1>Night Shift</h1>
+        <p><strong>GOAL:</strong> Drag the 3 Yellow Cargo boxes to the Green Extraction Zone before the timer runs out.</p>
+        <p><strong>CONTROLS:</strong> WASD to move. SPACE to jump. CLICK on a box to tether/drag it (physics are intentionally janky!). SHIFT to sprint.</p>
+        <p><strong>WARNING:</strong> The facility is unstable. Chaos events will occur. The Shadow hears you if you move too fast or drop things.</p>
+        <button id="startBtn">START SHIFT</button>
+    </div>
+
+    <div id="gameover">
+        <h1 id="endTitle">SHIFT OVER</h1>
+        <p id="endDesc" style="font-size: 1.5rem;"></p>
+        <button onclick="location.reload()">RESTART SHIFT</button>
+    </div>
+
+    <div id="jumpscare"></div>
+
+    <!-- Load Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+
+    <script>
+        // --- GAME VARIABLES ---
+        let scene, camera, renderer, world, controls;
+        let playerBody, monsterBody;
+        let monsterMesh;
+        let cargoItems = [];
+        let physicsObjects = [];
+        let grabConstraint = null;
+        let lastTime;
+        let shiftTime = 60;
+        let gameActive = false;
+        let canJump = true;
+        let flashlight;
+        
+        // Input state
+        const keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
+        
+        // UI Elements
+        const uiTimer = document.getElementById('timer');
+        const uiTasks = document.getElementById('tasks');
+        const uiChaos = document.getElementById('chaos');
+
+        // --- INITIALIZATION ---
+        function init() {
+            // 1. Three.js Setup
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050505, 0.06); // Creepy fog
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambient = new THREE.AmbientLight(0x222222);
+            scene.add(ambient);
+
+            flashlight = new THREE.SpotLight(0xffffff, 1, 20, Math.PI/4, 0.5, 1);
+            flashlight.castShadow = true;
+            scene.add(flashlight);
+
+            // 2. Cannon.js Setup
+            world = new CANNON.World();
+            world.gravity.set(0, -15, 0); // Slightly heavy gravity
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.solver.iterations = 10;
+
+            // Materials
+            const slipperyMat = new CANNON.Material();
+            const heavyMat = new CANNON.Material();
+            const contactMat = new CANNON.ContactMaterial(slipperyMat, heavyMat, { friction: 0.1, restitution: 0.1 });
+            world.addContactMaterial(contactMat);
+
+            // 3. Environment Generation
+            createMap(heavyMat);
+
+            // 4. Player Setup
+            const radius = 1;
+            playerBody = new CANNON.Body({ mass: 5, material: slipperyMat, shape: new CANNON.Sphere(radius) });
+            playerBody.position.set(0, 5, 0);
+            playerBody.linearDamping = 0.9;
+            world.addBody(playerBody);
+
+            controls = new THREE.PointerLockControls(camera, document.body);
+            
+            // 5. Monster Setup
+            monsterBody = new CANNON.Body({ mass: 10, shape: new CANNON.Box(new CANNON.Vec3(0.75, 2, 0.75)) });
+            monsterBody.position.set(15, 2, 15);
+            world.addBody(monsterBody);
+            
+            const monsterGeo = new THREE.BoxGeometry(1.5, 4, 1.5);
+            const monsterMat = new THREE.MeshBasicMaterial({ color: 0x000000 }); // Pitch black
+            monsterMesh = new THREE.Mesh(monsterGeo, monsterMat);
+            scene.add(monsterMesh);
+
+            // 6. Extraction Zone
+            const extGeo = new THREE.PlaneGeometry(8, 8);
+            const extMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+            const extZone = new THREE.Mesh(extGeo, extMat);
+            extZone.rotation.x = -Math.PI / 2;
+            extZone.position.set(-15, 0.1, -15);
+            scene.add(extZone);
+
+            // 7. Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', (e) => {
+                if(e.code === 'KeyW') keys.w = true;
+                if(e.code === 'KeyA') keys.a = true;
+                if(e.code === 'KeyS') keys.s = true;
+                if(e.code === 'KeyD') keys.d = true;
+                if(e.code === 'Space' && canJump) { playerBody.velocity.y = 8; canJump = false; }
+                if(e.code === 'ShiftLeft') keys.shift = true;
+            });
+            document.addEventListener('keyup', (e) => {
+                if(e.code === 'KeyW') keys.w = false;
+                if(e.code === 'KeyA') keys.a = false;
+                if(e.code === 'KeyS') keys.s = false;
+                if(e.code === 'KeyD') keys.d = false;
+                if(e.code === 'ShiftLeft') keys.shift = false;
+            });
+            
+            playerBody.addEventListener("collide", (e) => {
+                const contactNormal = new CANNON.Vec3();
+                e.contact.ni.negate(contactNormal);
+                if (contactNormal.dot(new CANNON.Vec3(0, 1, 0)) > 0.5) canJump = true;
+            });
+
+            document.addEventListener('mousedown', tryGrab);
+
+            document.getElementById('startBtn').addEventListener('click', () => {
+                controls.lock();
+            });
+
+            controls.addEventListener('lock', () => {
+                document.getElementById('menu').style.display = 'none';
+                if (!gameActive) startGame();
+            });
+            controls.addEventListener('unlock', () => {
+                if (gameActive) document.getElementById('menu').style.display = 'flex';
+            });
+        }
+
+        function createMap(mat) {
+            // Floor
+            const groundShape = new CANNON.Plane();
+            const groundBody = new CANNON.Body({ mass: 0, shape: groundShape });
+            groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            world.addBody(groundBody);
+            
+            const gridHelper = new THREE.GridHelper(50, 50, 0x333333, 0x111111);
+            gridHelper.position.y = 0.01;
+            scene.add(gridHelper);
+
+            // Walls (Bounding Box)
+            createWall(0, 5, -25, 50, 10, 1, mat);
+            createWall(0, 5, 25, 50, 10, 1, mat);
+            createWall(-25, 5, 0, 1, 10, 50, mat);
+            createWall(25, 5, 0, 1, 10, 50, mat);
+
+            // Obstacles
+            createWall(5, 2, 5, 10, 4, 2, mat);
+            createWall(-5, 3, 10, 4, 6, 4, mat);
+
+            // Cargo (Tasks)
+            for(let i=0; i<3; i++) {
+                const size = 1;
+                const cBody = new CANNON.Body({ mass: 3, shape: new CANNON.Box(new CANNON.Vec3(size/2, size/2, size/2)) });
+                cBody.position.set(Math.random() * 20 - 10, 5, Math.random() * 20 - 10);
+                world.addBody(cBody);
+
+                const cMesh = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), new THREE.MeshStandardMaterial({ color: 0xffcc00 }));
+                cMesh.castShadow = true;
+                scene.add(cMesh);
+
+                physicsObjects.push({ body: cBody, mesh: cMesh });
+                cargoItems.push({ body: cBody, mesh: cMesh });
+            }
+        }
+
+        function createWall(x, y, z, w, h, d, mat) {
+            const body = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(w/2, h/2, d/2)), material: mat });
+            body.position.set(x, y, z);
+            world.addBody(body);
+            
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+            mesh.position.copy(body.position);
+            scene.add(mesh);
+        }
+
+        // --- CORE GAME LOGIC ---
+        function startGame() {
+            gameActive = true;
+            lastTime = performance.now();
+            
+            // Timers
+            const timerInt = setInterval(() => {
+                if(!gameActive) return clearInterval(timerInt);
+                shiftTime--;
+                uiTimer.innerText = `Shift Ends In: ${shiftTime}s`;
+                if (shiftTime <= 0) endGame(checkWin());
+            }, 1000);
+
+            // Chaos System
+            const chaosInt = setInterval(() => {
+                if(!gameActive) return clearInterval(chaosInt);
+                triggerChaos();
+            }, 12000);
+
+            animate();
+        }
+
+        function triggerChaos() {
+            const events = ["GRAVITY FLUCTUATION", "POLTERGEIST", "SYSTEM FAILURE"];
+            const ev = events[Math.floor(Math.random() * events.length)];
+            
+            uiChaos.innerText = `Status: ${ev}`;
+            uiChaos.style.color = "#ff3333";
+
+            if (ev === "GRAVITY FLUCTUATION") {
+                world.gravity.set(0, 3, 0); // Everything floats
+                setTimeout(() => { 
+                    world.gravity.set(0, -15, 0); 
+                    resetChaosUI(); 
+                }, 3000);
+            } else if (ev === "POLTERGEIST") {
+                cargoItems.forEach(item => {
+                    item.body.velocity.set((Math.random()-0.5)*15, 10, (Math.random()-0.5)*15);
+                });
+                setTimeout(() => resetChaosUI(), 2000);
+            } else if (ev === "SYSTEM FAILURE") {
+                scene.fog.density = 0.2; // Pitch black
+                setTimeout(() => { 
+                    scene.fog.density = 0.06; 
+                    resetChaosUI(); 
+                }, 4000);
+            }
+        }
+
+        function resetChaosUI() {
+            if(gameActive) {
+                uiChaos.innerText = "Status: STABLE";
+                uiChaos.style.color = "#44ff44";
+            }
+        }
+
+        // --- INTERACTION & PHYSICS CHAOS ---
+        function tryGrab() {
+            if (!controls.isLocked) return;
+
+            // If already holding, drop it
+            if (grabConstraint) {
+                world.removeConstraint(grabConstraint);
+                grabConstraint = null;
+                return;
+            }
+
+            // Raycast to find box
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            
+            const cargoMeshes = cargoItems.map(c => c.mesh);
+            const intersects = raycaster.intersectObjects(cargoMeshes);
+
+            if (intersects.length > 0 && intersects[0].distance < 6) {
+                const targetMesh = intersects[0].object;
+                const targetData = cargoItems.find(c => c.mesh === targetMesh);
+                
+                // Physics-based dragging (creates wobbly, chaotic Lethal Company vibe)
+                grabConstraint = new CANNON.DistanceConstraint(playerBody, targetData.body, 3);
+                world.addConstraint(grabConstraint);
+            }
+        }
+
+        function updateAI() {
+            const dist = monsterBody.position.distanceTo(playerBody.position);
+            const speed = playerBody.velocity.length();
+            
+            // Reacts to noise (sprinting or close proximity)
+            if (dist < 20 && (keys.shift || speed > 6)) {
+                monsterMesh.material.color.setHex(0x330000); // Glows slightly red when angry
+                const dir = playerBody.position.vsub(monsterBody.position);
+                dir.normalize();
+                // Push monster towards player
+                monsterBody.velocity.x = dir.x * 6;
+                monsterBody.velocity.z = dir.z * 6;
+            } else {
+                monsterMesh.material.color.setHex(0x000000);
+                monsterBody.velocity.x *= 0.9; // Stop moving
+                monsterBody.velocity.z *= 0.9;
+            }
+
+            // Sync visual
+            monsterMesh.position.copy(monsterBody.position);
+
+            // Jumpscare collision
+            if (dist < 2.5 && gameActive) {
+                triggerJumpscare();
+            }
+        }
+
+        function triggerJumpscare() {
+            gameActive = false;
+            controls.unlock();
+            const scare = document.getElementById('jumpscare');
+            scare.style.display = 'block';
+            setTimeout(() => {
+                scare.style.display = 'none';
+                endGame(false, "THE SHADOW CAUGHT YOU.");
+            }, 300);
+        }
+
+        function checkWin() {
+            let secured = 0;
+            const extZoneCenter = new CANNON.Vec3(-15, 0, -15);
+            
+            cargoItems.forEach(item => {
+                if (item.body.position.distanceTo(extZoneCenter) < 5) secured++;
+            });
+            
+            uiTasks.innerText = `Tasks: ${secured}/3 Cargo Secured`;
+            return secured >= 3;
+        }
+
+        function endGame(won, reason = "") {
+            gameActive = false;
+            controls.unlock();
+            
+            const screen = document.getElementById('gameover');
+            screen.style.display = 'flex';
+            screen.style.backgroundColor = won ? "#003300" : "#330000";
+            
+            document.getElementById('endTitle').innerText = won ? "SHIFT SURVIVED" : "SHIFT FAILED";
+            document.getElementById('endTitle').style.color = won ? "#44ff44" : "#ff3333";
+            document.getElementById('endDesc').innerText = won ? "You hit your quota." : (reason || "You didn't secure the cargo in time.");
+        }
+
+        // --- MAIN LOOP ---
+        function animate() {
+            if (!gameActive) return;
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+            const delta = (time - lastTime) / 1000;
+            lastTime = time;
+
+            // Step Physics
+            world.step(1 / 60, delta, 3);
+
+            // Sync Physics to Visuals
+            physicsObjects.forEach(obj => {
+                obj.mesh.position.copy(obj.body.position);
+                obj.mesh.quaternion.copy(obj.body.quaternion);
+            });
+
+            // Player Movement (Velocity based for snappy but physical feel)
+            if (controls.isLocked) {
+                const inputVelocity = new THREE.Vector3();
+                inputVelocity.z = Number(keys.s) - Number(keys.w);
+                inputVelocity.x = Number(keys.d) - Number(keys.a);
+                inputVelocity.normalize();
+                
+                if (keys.shift) inputVelocity.multiplyScalar(1.8);
+
+                // Align input to camera direction
+                inputVelocity.applyEuler(new THREE.Euler(0, camera.rotation.y, 0));
+
+                playerBody.velocity.x = inputVelocity.x * 8;
+                playerBody.velocity.z = inputVelocity.z * 8;
+            }
+
+            // Sync Camera to Player Body
+            camera.position.copy(playerBody.position);
+            camera.position.y += 0.8; // Eye level
+
+            // Flashlight follows camera
+            flashlight.position.copy(camera.position);
+            flashlight.target.position.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()));
+            flashlight.target.updateMatrixWorld();
+
+            updateAI();
+            checkWin(); // Update UI tracker
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>
