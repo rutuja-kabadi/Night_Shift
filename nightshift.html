@@ -3,115 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Night Shift - Facility Update</title>
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <title>Night Shift - Stealth Update</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     
     <style>
         :root {
-            --theme-color: #ffb347;
-            --danger-color: #ff3333;
-            --safe-color: #44ff44;
-            --bg-color: #050505;
+            --vcr-text: #f4f4f5;
+            --vcr-red: #ff3333;
+            --bg-color: #020202;
         }
 
         body, html {
             margin: 0; padding: 0; overflow: hidden; background: var(--bg-color);
-            font-family: 'Share Tech Mono', monospace; color: var(--theme-color); user-select: none;
+            font-family: 'VT323', monospace; color: var(--vcr-text); user-select: none;
         }
 
-        #crt-overlay {
+        #vhs-scanlines {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            background-size: 100% 2px, 3px 100%; z-index: 50; pointer-events: none; opacity: 0.5;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px; z-index: 50; pointer-events: none; opacity: 0.4;
+        }
+
+        #vhs-noise {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-image: repeating-radial-gradient(circle at 17% 32%, rgba(255,255,255,0.03), rgba(0,0,0,0.03) 1px, transparent 2px);
+            background-size: 200px 200px;
+            z-index: 49; pointer-events: none;
+            animation: noiseAnim 0.2s infinite linear;
+        }
+
+        @keyframes noiseAnim {
+            0% { background-position: 0 0; }
+            100% { background-position: 20px 30px; }
         }
 
         #vignette {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.9) 100%);
-            z-index: 49; pointer-events: none;
+            box-shadow: inset 0 0 150px rgba(0,0,0,0.9); z-index: 48; pointer-events: none;
         }
 
-        #ui { position: absolute; top: 2rem; left: 2rem; z-index: 10; pointer-events: none; text-shadow: 0 0 5px var(--theme-color); }
-        .header h2 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; }
-        .stats { margin-top: 1rem; padding-left: 10px; border-left: 2px solid var(--theme-color); }
-        #timer, #tasks { font-size: 1.2rem; margin-bottom: 5px; }
+        #ui { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 10; pointer-events: none; text-shadow: 2px 2px 0px #000, -1px -1px 0px rgba(255,255,255,0.2); 
+            padding: 2rem; box-sizing: border-box;
+        }
+        
+        .rec-container { font-size: 2.5rem; display: flex; align-items: center; gap: 10px; }
+        .rec-dot { color: var(--vcr-red); animation: blink 1s infinite; text-shadow: 0 0 10px var(--vcr-red); }
+        
+        .time-stamp { position: absolute; bottom: 2rem; left: 2rem; font-size: 2rem; line-height: 1.2; }
+        .battery { position: absolute; bottom: 2rem; right: 2rem; font-size: 2rem; }
+        
+        .mission-info { position: absolute; top: 2rem; right: 2rem; text-align: right; font-size: 1.8rem; }
+        .mission-info span { color: #ffcc00; }
 
-        .status-good { color: var(--safe-color); text-shadow: 0 0 5px var(--safe-color); }
-        .status-bad { color: var(--danger-color); text-shadow: 0 0 5px var(--danger-color); animation: blink 1s infinite; }
-
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
         #crosshair {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 10; pointer-events: none; display: flex; justify-content: center; align-items: center;
+            z-index: 10; pointer-events: none; color: rgba(255,255,255,0.5); font-size: 1.5rem;
         }
-        .dot { width: 4px; height: 4px; background: rgba(255, 255, 255, 0.8); border-radius: 50%; }
-        .ring { position: absolute; width: 20px; height: 20px; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 50%; }
 
         #menu, #gameover {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5, 5, 5, 0.85); backdrop-filter: blur(4px);
+            background: rgba(2, 2, 2, 0.9); backdrop-filter: blur(2px);
             display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
         }
 
         #gameover { display: none; }
-        .menu-content { background: rgba(20, 20, 20, 0.9); padding: 3rem; border: 1px solid #333; box-shadow: 0 0 20px rgba(0,0,0,0.8); text-align: center; max-width: 600px; }
-        h1 { margin: 0; font-size: 4rem; letter-spacing: 4px; color: #fff; text-shadow: 0 0 10px #fff; }
-        .divider { width: 100%; height: 2px; background: var(--theme-color); margin: 20px 0; }
-        .warning { color: var(--danger-color); font-weight: bold; }
-        .instructions { text-align: left; line-height: 1.8; font-size: 1.1rem; color: #ccc; margin-bottom: 2rem; }
-        .instructions span { color: var(--theme-color); font-weight: bold; }
+        .menu-content { text-align: center; max-width: 600px; padding: 2rem; }
+        h1 { margin: 0; font-size: 5rem; letter-spacing: 2px; color: var(--vcr-text); text-shadow: 3px 3px 0 #000; }
+        .instructions { text-align: left; line-height: 1.5; font-size: 1.5rem; color: #aaa; margin: 2rem 0; }
+        .instructions span { color: #fff; }
 
-        button { background: transparent; color: var(--theme-color); border: 2px solid var(--theme-color); padding: 15px 40px; font-size: 1.5rem; font-family: 'Share Tech Mono', monospace; cursor: pointer; transition: all 0.2s ease; text-transform: uppercase; }
-        button:hover { background: var(--theme-color); color: #000; box-shadow: 0 0 15px var(--theme-color); }
+        button { 
+            background: #fff; color: #000; border: none; padding: 10px 30px; font-size: 2rem; 
+            font-family: 'VT323', monospace; cursor: pointer; transition: 0.1s; text-transform: uppercase; 
+        }
+        button:hover { background: var(--vcr-red); color: white; }
 
         #jumpscare {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 200;
-            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><rect width="100%" height="100%" fill="red"/><text x="50%" y="50%" font-size="100" fill="black" text-anchor="middle" dominant-baseline="middle" font-family="monospace">SYSTEM FAILURE</text></svg>');
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><rect width="100%" height="100%" fill="black"/><text x="50%" y="50%" font-size="100" fill="red" text-anchor="middle" dominant-baseline="middle" font-family="monospace">CONNECTION LOST</text></svg>');
             background-size: cover;
+        }
+        
+        .chromatic-aberration { animation: glitch 0.2s infinite; }
+        @keyframes glitch {
+            0% { text-shadow: 2px 0 red, -2px 0 blue; }
+            50% { text-shadow: -2px 0 red, 2px 0 blue; }
+            100% { text-shadow: 2px 0 red, -2px 0 blue; }
         }
     </style>
 </head>
 <body>
-    <div id="crt-overlay"></div>
+    <div id="vhs-scanlines"></div>
+    <div id="vhs-noise"></div>
     <div id="vignette"></div>
 
     <div id="ui">
-        <div class="header">
-            <h2>NIGHT SHIFT_OS</h2>
-            <div id="chaos" class="status-good">[SYS: ONLINE]</div>
+        <div class="rec-container">
+            <div class="rec-dot">●</div> REC
         </div>
-        <div class="stats">
-            <div id="timer">T-MINUS: 180s</div>
-            <div id="tasks">QUOTA: 0/3</div>
+        <div class="mission-info">
+            EXTRACT CARGO<br>
+            <span id="tasks">QUOTA: 0/3</span><br>
+            <span id="timer" style="color: white;">T-180s</span>
+        </div>
+        <div class="time-stamp">
+            MAY 15 2026<br>
+            PM 02:52:22
+        </div>
+        <div class="battery">
+            BAT [|||||]
         </div>
     </div>
     
-    <div id="crosshair">
-        <div class="dot"></div>
-        <div class="ring"></div>
-    </div>
+    <div id="crosshair">+</div>
     
     <div id="menu">
         <div class="menu-content">
-            <h1>NIGHT SHIFT</h1>
-            <div class="divider"></div>
-            <p class="warning">WARNING: Procedural audio active. Adjust volume.</p>
+            <h1 class="chromatic-aberration">NIGHT SHIFT</h1>
             <div class="instructions">
-                <p><span>[OBJ]</span> Find 3 Cargo Boxes in the facility. Drag to Green Zone.</p>
-                <p><span>[MOV]</span> WASD to move. SHIFT to sprint.</p>
-                <p><span>[ACT]</span> CLICK to tether/drop cargo.</p>
+                <p><span>[W A S D]</span> SNEAK (QUIET)</p>
+                <p><span>[SHIFT]</span> SPRINT (LOUD)</p>
+                <p><span>[CLICK]</span> TETHER CARGO</p>
+                <p style="color: var(--vcr-red); margin-top: 20px;">> THE ANOMALY HEARS SPRINTING. WALK CAREFULLY.</p>
             </div>
-            <button id="startBtn">INITIALIZE SHIFT</button>
+            <button id="startBtn">PLAY TAPE</button>
         </div>
     </div>
 
     <div id="gameover">
         <div class="menu-content">
-            <h1 id="endTitle">SHIFT OVER</h1>
-            <div class="divider"></div>
-            <p id="endDesc"></p>
-            <button id="restartBtn">REBOOT SYSTEM</button>
+            <h1 id="endTitle">END OF TAPE</h1>
+            <p id="endDesc" style="font-size: 2rem; color: #aaa;"></p>
+            <button id="restartBtn">EJECT & REWIND</button>
         </div>
     </div>
 
@@ -129,37 +156,30 @@
         const SFX = {
             playFootstep: () => {
                 if(audioCtx.state === 'suspended') audioCtx.resume();
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(80 + Math.random()*20, audioCtx.currentTime);
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(60 + Math.random()*20, audioCtx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.06, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.1);
             },
             playDrop: () => {
                 const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-                osc.type = 'square'; osc.frequency.setValueAtTime(80, audioCtx.currentTime);
+                osc.type = 'square'; osc.frequency.setValueAtTime(60, audioCtx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.2);
-                gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.2);
             },
             playJumpscare: () => {
-                const osc1 = audioCtx.createOscillator(); const osc2 = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-                osc1.type = 'sawtooth'; osc2.type = 'square';
-                osc1.frequency.setValueAtTime(100, audioCtx.currentTime); osc2.frequency.setValueAtTime(115, audioCtx.currentTime);
-                gain.gain.setValueAtTime(1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
-                osc1.connect(gain); osc2.connect(gain); gain.connect(audioCtx.destination);
-                osc1.start(); osc2.start(); osc1.stop(audioCtx.currentTime + 1.5); osc2.stop(audioCtx.currentTime + 1.5);
+                const osc1 = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc1.type = 'sawtooth'; osc1.frequency.setValueAtTime(50, audioCtx.currentTime);
+                gain.gain.setValueAtTime(1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.0);
+                osc1.connect(gain); gain.connect(audioCtx.destination); osc1.start(); osc1.stop(audioCtx.currentTime + 1.0);
             },
             startAmbience: () => {
                 if(ambientOsc) return;
                 ambientOsc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-                ambientOsc.type = 'sine'; ambientOsc.frequency.setValueAtTime(30, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                ambientOsc.type = 'sine'; ambientOsc.frequency.setValueAtTime(25, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
                 ambientOsc.connect(gain); gain.connect(audioCtx.destination); ambientOsc.start();
             }
         };
@@ -177,90 +197,77 @@
         let targetMoveVector = new THREE.Vector3();
 
         const keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
-        const uiTimer = document.getElementById('timer'), uiTasks = document.getElementById('tasks'), uiChaos = document.getElementById('chaos');
+        const uiTimer = document.getElementById('timer'), uiTasks = document.getElementById('tasks');
 
         function init() {
             scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x010101, 0.04); // Slightly less dense fog to see rooms
+            scene.fog = new THREE.FogExp2(0x0a0c0a, 0.05); 
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
             
-            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer = new THREE.WebGLRenderer({ antialias: false });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            // Lighting Setup
-            scene.add(new THREE.AmbientLight(0x050505)); // Extremely dark base
+            scene.add(new THREE.AmbientLight(0x020302)); 
             
-            flashlight = new THREE.SpotLight(0xfff0e0, 2.0, 30, Math.PI/6, 0.5, 2);
+            flashlight = new THREE.SpotLight(0xcceeff, 2.5, 35, Math.PI/5, 0.6, 2);
             flashlight.castShadow = true;
             scene.add(flashlight);
 
-            // Physics Setup
             world = new CANNON.World();
             world.gravity.set(0, -15, 0); 
             world.broadphase = new CANNON.NaiveBroadphase();
             world.solver.iterations = 20;
 
-            // Materials for smooth, non-bouncy FPS movement
             const defaultMat = new CANNON.Material();
             const playerMat = new CANNON.Material();
-            
-            // Player vs World: No friction, no bounciness
             const playerContactMat = new CANNON.ContactMaterial(playerMat, defaultMat, { friction: 0.0, restitution: 0.0 });
             world.addContactMaterial(playerContactMat);
 
             createFacility(defaultMat);
 
-            // Player Setup - Fixed Box to prevent bouncing/rolling
             playerBody = new CANNON.Body({ mass: 60, material: playerMat, shape: new CANNON.Box(new CANNON.Vec3(0.5, 1, 0.5)) });
-            playerBody.position.set(20, 2, 20); // Spawn in extraction room
+            playerBody.position.set(20, 2, 20); 
             playerBody.fixedRotation = true;
             playerBody.updateMassProperties();
-            playerBody.linearDamping = 0.9; // Stops ice-skating
+            playerBody.linearDamping = 0.9; 
             world.addBody(playerBody);
 
             controls = new THREE.PointerLockControls(camera, document.body);
             
-            // Monster
-            monsterBody = new CANNON.Body({ mass: 10, shape: new CANNON.Box(new CANNON.Vec3(0.75, 2, 0.75)), material: playerMat });
-            monsterBody.position.set(-20, 2, -20);
+            monsterBody = new CANNON.Body({ mass: 10, shape: new CANNON.Box(new CANNON.Vec3(0.6, 2.2, 0.6)), material: playerMat });
+            // SPAWN FIX: Monster now patrols the center of the map
+            monsterBody.position.set(0, 2, 0);
             monsterBody.fixedRotation = true;
             monsterBody.linearDamping = 0.9;
             world.addBody(monsterBody);
             
-            monsterMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.5), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+            monsterMesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 4.4, 1.2), new THREE.MeshBasicMaterial({ color: 0x000000 }));
             scene.add(monsterMesh);
 
             setupInput();
         }
 
         function createFacility(mat) {
-            // Textures/Colors
-            const floorColor = 0x111111;
-            const wallColor = 0x1a1a1a;
-            const ceilingColor = 0x080808;
+            const floorColor = 0x181a18; 
+            const wallColor = 0x1c201c;  
+            const ceilingColor = 0x050505;
 
-            // Floor
             const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: mat });
             groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
             world.addBody(groundBody);
             
-            const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.9 }));
-            floorMesh.rotation.x = -Math.PI / 2;
-            floorMesh.receiveShadow = true;
-            scene.add(floorMesh);
+            const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: floorColor, roughness: 1.0 }));
+            floorMesh.rotation.x = -Math.PI / 2; floorMesh.receiveShadow = true; scene.add(floorMesh);
 
-            // Ceiling (Creates claustrophobia)
             const ceilingMesh = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: ceilingColor, roughness: 1.0 }));
-            ceilingMesh.rotation.x = Math.PI / 2;
-            ceilingMesh.position.y = 8;
-            scene.add(ceilingMesh);
+            ceilingMesh.rotation.x = Math.PI / 2; ceilingMesh.position.y = 8; scene.add(ceilingMesh);
 
             const addWall = (x, z, w, d) => {
-                const h = 8; // Full ceiling height
+                const h = 8; 
                 const b = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(w/2, h/2, d/2)), material: mat });
                 b.position.set(x, h/2, z); world.addBody(b);
                 const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color: wallColor }));
@@ -270,53 +277,37 @@
             const addPillar = (x, z) => {
                 const b = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(1, 4, 1)), material: mat });
                 b.position.set(x, 4, z); world.addBody(b);
-                const m = new THREE.Mesh(new THREE.BoxGeometry(2, 8, 2), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+                const m = new THREE.Mesh(new THREE.BoxGeometry(2, 8, 2), new THREE.MeshStandardMaterial({ color: 0x111111 }));
                 m.position.copy(b.position); m.castShadow = true; m.receiveShadow = true; scene.add(m);
             }
 
-            // Facility Perimeter [-30 to 30]
             addWall(0, -30, 60, 2); addWall(0, 30, 60, 2);
             addWall(-30, 0, 2, 60); addWall(30, 0, 2, 60);
+            addWall(0, 10, 40, 2);  addWall(10, -10, 2, 40);
 
-            // Internal Level Design (Corridors and Rooms)
-            addWall(0, 10, 40, 2);  // Central horizontal divider
-            addWall(10, -10, 2, 40); // Central vertical divider
+            addPillar(-5, 10); addPillar(5, 10); addPillar(10, 5); addPillar(10, 15);
 
-            // Openings/Doors (Gaps in walls)
-            addPillar(-5, 10); addPillar(5, 10); // Archway
-            addPillar(10, 5); addPillar(10, 15);
-
-            // Ambience: Emergency Lights in Facility
             const addLight = (x, z, color, intensity) => {
                 const light = new THREE.PointLight(color, intensity, 25);
-                light.position.set(x, 7, z);
-                scene.add(light);
-                flickerLights.push(light);
+                light.position.set(x, 7, z); scene.add(light); flickerLights.push(light);
             };
 
-            addLight(20, 20, 0x44ff44, 1); // Green extraction light
-            addLight(-20, -20, 0xff3333, 1.5); // Red server room
-            addLight(-20, 20, 0xffaa00, 1); // Orange storage
-            addLight(20, -20, 0x3366ff, 1); // Blue control room
+            addLight(20, 20, 0x55ff55, 0.8); 
+            addLight(-20, -20, 0xff2222, 1.2); 
+            addLight(-20, 20, 0xffddaa, 0.8); 
+            addLight(20, -20, 0xaaaaff, 0.8); 
 
-            // Extraction Zone (Visual)
-            const extZone = new THREE.Mesh(
-                new THREE.BoxGeometry(8, 0.2, 8), 
-                new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: 0.3 })
-            );
-            extZone.position.set(20, 0.1, 20); // Top right room
-            scene.add(extZone);
+            const extZone = new THREE.Mesh(new THREE.BoxGeometry(8, 0.2, 8), new THREE.MeshBasicMaterial({ color: 0x55ff55, transparent: true, opacity: 0.2 }));
+            extZone.position.set(20, 0.1, 20); scene.add(extZone);
 
-            // Cargo placement (Scattered in other rooms)
             const cargoSpawns = [[-20, -20], [-20, 20], [20, -20]];
             for(let i=0; i<3; i++) {
                 const b = new CANNON.Body({ mass: 15, shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)), material: mat, linearDamping: 0.5 });
                 b.position.set(cargoSpawns[i][0] + Math.random()*2, 2, cargoSpawns[i][1] + Math.random()*2);
                 world.addBody(b);
-                const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xffb347, roughness: 0.8 }));
+                const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xaa8833, roughness: 0.9 }));
                 m.castShadow = true; scene.add(m);
-                physicsObjects.push({ body: b, mesh: m }); 
-                cargoItems.push({ body: b, mesh: m });
+                physicsObjects.push({ body: b, mesh: m }); cargoItems.push({ body: b, mesh: m });
             }
         }
 
@@ -348,24 +339,17 @@
             
             setInterval(() => {
                 if(!gameActive) return;
-                shiftTime--; uiTimer.innerText = `T-MINUS: ${shiftTime}s`;
+                shiftTime--; uiTimer.innerText = `T-${shiftTime}s`;
                 if (shiftTime <= 0) endGame(checkWin());
             }, 1000);
 
-            // Dynamic Chaos / Flickering Lights
             setInterval(() => {
                 if(!gameActive) return;
-                if(Math.random() > 0.7) {
-                    uiChaos.innerText = "[SYS: ANOMALY]"; uiChaos.className = "status-bad";
-                    flashlight.intensity = 0.2;
-                    flickerLights.forEach(l => l.intensity = 0.1);
-                    setTimeout(() => { 
-                        flashlight.intensity = 2.0; 
-                        flickerLights.forEach(l => l.intensity = 1.0);
-                        uiChaos.innerText = "[SYS: ONLINE]"; uiChaos.className = "status-good";
-                    }, 4000);
+                if(Math.random() > 0.8) {
+                    document.getElementById('ui').classList.add('chromatic-aberration');
+                    setTimeout(() => document.getElementById('ui').classList.remove('chromatic-aberration'), 500);
                 }
-            }, 10000);
+            }, 5000);
             animate();
         }
 
@@ -389,18 +373,29 @@
 
         function updateAI() {
             const dist = monsterBody.position.distanceTo(playerBody.position);
-            const speed = Math.abs(playerBody.velocity.x) + Math.abs(playerBody.velocity.z);
             
-            // Monster is aggressive if you sprint or if it's close
-            if (dist < 25 && (keys.shift || speed > 8 || dist < 12)) {
+            // AI FIX: Check if player is actually moving while pressing shift
+            const isMoving = Math.abs(playerBody.velocity.x) > 1 || Math.abs(playerBody.velocity.z) > 1;
+            const isSprinting = isMoving && keys.shift;
+            
+            // STEALTH LOGIC: 
+            // 1. Hears sprinting up to 30 units away.
+            // 2. Sees you if you get within 12 units (regardless of walking).
+            if ((dist < 30 && isSprinting) || dist < 12) {
                 const dir = playerBody.position.vsub(monsterBody.position); dir.y = 0; dir.normalize();
                 
-                // Pure pursuit logic
-                monsterBody.velocity.x = dir.x * 9; 
-                monsterBody.velocity.z = dir.z * 9;
-                monsterMesh.scale.y = 1 + Math.sin(performance.now() * 0.015) * 0.15; // aggressive animation
+                // Slightly slower than walking speed, so you can outwalk it if careful
+                monsterBody.velocity.x = dir.x * 8.5; 
+                monsterBody.velocity.z = dir.z * 8.5;
+                
+                monsterMesh.scale.y = 1 + Math.sin(performance.now() * 0.02) * 0.2; 
+                monsterMesh.material.color.setHex(0x220000); // Glows dark red when hunting
             } else {
+                // Return to idle
+                monsterBody.velocity.x *= 0.9; 
+                monsterBody.velocity.z *= 0.9;
                 monsterMesh.scale.y = 1;
+                monsterMesh.material.color.setHex(0x000000); // Pitch black
             }
 
             monsterMesh.position.copy(monsterBody.position);
@@ -410,7 +405,7 @@
         function triggerJumpscare() {
             gameActive = false; controls.unlock(); if(ambientOsc) ambientOsc.stop();
             SFX.playJumpscare(); document.getElementById('jumpscare').style.display = 'block';
-            setTimeout(() => { document.getElementById('jumpscare').style.display = 'none'; endGame(false, "FATAL ENCOUNTER."); }, 1500);
+            setTimeout(() => { document.getElementById('jumpscare').style.display = 'none'; endGame(false, "SUBJECT LOST."); }, 1000);
         }
 
         function checkWin() {
@@ -423,9 +418,9 @@
         function endGame(won, reason = "") {
             gameActive = false; controls.unlock(); if(ambientOsc) ambientOsc.stop();
             document.getElementById('gameover').style.display = 'flex';
-            document.getElementById('endTitle').innerText = won ? "SHIFT COMPLETED" : "SHIFT FAILED";
-            document.getElementById('endTitle').style.color = won ? "var(--safe-color)" : "var(--danger-color)";
-            document.getElementById('endDesc').innerText = won ? "Quota met. Evac in progress." : (reason || "Failed to meet quota.");
+            document.getElementById('endTitle').innerText = won ? "SURVIVED" : "TAPE ENDED";
+            document.getElementById('endTitle').style.color = won ? "white" : "var(--vcr-red)";
+            document.getElementById('endDesc').innerText = won ? "Cargo Secured." : reason;
         }
 
         function animate() {
@@ -436,49 +431,41 @@
             world.step(1 / 60, delta, 3);
 
             physicsObjects.forEach(obj => {
-                obj.mesh.position.copy(obj.body.position);
-                obj.mesh.quaternion.copy(obj.body.quaternion);
+                obj.mesh.position.copy(obj.body.position); obj.mesh.quaternion.copy(obj.body.quaternion);
             });
 
-            // --- FIXED FPS MOVEMENT ---
             if (controls.isLocked) {
                 const dir = new THREE.Vector3();
                 camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
                 const right = new THREE.Vector3();
                 right.crossVectors(camera.up, dir).normalize();
 
-                const moveZ = (Number(keys.s) - Number(keys.w));
+                const moveZ = (Number(keys.w) - Number(keys.s));
                 const moveX = (Number(keys.d) - Number(keys.a));
                 
-                // MUCH faster base speeds
                 const speed = keys.shift ? 16 : 9; 
                 
                 targetMoveVector.set(0,0,0).addScaledVector(dir, moveZ).addScaledVector(right, moveX).normalize().multiplyScalar(speed);
-
-                // Very high Lerp factor removes the "sluggish" delay.
                 currentMoveVector.lerp(targetMoveVector, 15 * delta);
 
-                // Directly apply X and Z, leave Y (gravity/jump) alone to prevent bouncy camera.
-                playerBody.velocity.x = currentMoveVector.x;
-                playerBody.velocity.z = currentMoveVector.z;
+                playerBody.velocity.x = currentMoveVector.x; playerBody.velocity.z = currentMoveVector.z;
                 
-                // Reduced camera bobbing amplitude to remove "jumping" illusion
                 if(Math.abs(currentMoveVector.x) > 1 || Math.abs(currentMoveVector.z) > 1) {
                     walkTimer += delta * (keys.shift ? 20 : 12);
-                    camera.position.y = playerBody.position.y + 0.8 + Math.sin(walkTimer) * 0.05; // Tightened bobbing
+                    camera.position.y = playerBody.position.y + 0.8 + Math.sin(walkTimer) * 0.05; 
                     if(Math.sin(walkTimer) < -0.9 && walkTimer % Math.PI < 0.2) SFX.playFootstep();
                 } else {
                     camera.position.y = playerBody.position.y + 0.8;
                 }
             }
 
-            camera.position.x = playerBody.position.x;
-            camera.position.z = playerBody.position.z;
+            camera.position.x = playerBody.position.x; camera.position.z = playerBody.position.z;
 
-            // Smoother Flashlight Sync
             flashlight.position.copy(camera.position);
             const targetDir = new THREE.Vector3(); camera.getWorldDirection(targetDir);
             flashlight.target.position.copy(camera.position).add(targetDir);
+            
+            flashlight.intensity = 2.5 + (Math.random() * 0.2 - 0.1);
             flashlight.target.updateMatrixWorld();
 
             updateAI(); checkWin();
