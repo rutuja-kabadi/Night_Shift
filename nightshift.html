@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Night Shift - Stealth Update</title>
+    <title>Night Shift - Escalation Update</title>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     
     <style>
@@ -52,7 +52,7 @@
         .rec-dot { color: var(--vcr-red); animation: blink 1s infinite; text-shadow: 0 0 10px var(--vcr-red); }
         
         .time-stamp { position: absolute; bottom: 2rem; left: 2rem; font-size: 2rem; line-height: 1.2; }
-        .battery { position: absolute; bottom: 2rem; right: 2rem; font-size: 2rem; }
+        .battery { position: absolute; bottom: 2rem; right: 2rem; font-size: 2rem; text-align: right; }
         
         .mission-info { position: absolute; top: 2rem; right: 2rem; text-align: right; font-size: 1.8rem; }
         .mission-info span { color: #ffcc00; }
@@ -79,6 +79,7 @@
         button { 
             background: #fff; color: #000; border: none; padding: 10px 30px; font-size: 2rem; 
             font-family: 'VT323', monospace; cursor: pointer; transition: 0.1s; text-transform: uppercase; 
+            margin-top: 20px;
         }
         button:hover { background: var(--vcr-red); color: white; }
 
@@ -103,7 +104,7 @@
 
     <div id="ui">
         <div class="rec-container">
-            <div class="rec-dot">●</div> REC
+            <div class="rec-dot">●</div> REC <span id="uiLevel" style="margin-left: 15px; font-size: 1.5rem; color: #aaa;">TAPE 01</span>
         </div>
         <div class="mission-info">
             EXTRACT CARGO<br>
@@ -124,6 +125,7 @@
     <div id="menu">
         <div class="menu-content">
             <h1 class="chromatic-aberration">NIGHT SHIFT</h1>
+            <h2 id="menuLevelDisplay" style="color: var(--vcr-red);">TAPE 01</h2>
             <div class="instructions">
                 <p><span>[W A S D]</span> SNEAK (QUIET)</p>
                 <p><span>[SHIFT]</span> SPRINT (LOUD)</p>
@@ -149,6 +151,19 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
     
     <script>
+        // --- LEVEL SYSTEM ---
+        let currentLevel = parseInt(sessionStorage.getItem('nightshift_level')) || 1;
+        
+        const levels = [
+            { boxes: 3, time: 180, monsterSpeed: 8.5, fog: 0.05 },  // Level 1: Standard
+            { boxes: 4, time: 150, monsterSpeed: 10.0, fog: 0.065 }, // Level 2: Harder, faster, tighter time
+            { boxes: 5, time: 120, monsterSpeed: 11.5, fog: 0.08 }   // Level 3: Pitch black, extremely aggressive
+        ];
+
+        // Cap level to max available
+        if (currentLevel > levels.length) currentLevel = levels.length;
+        const config = levels[currentLevel - 1];
+
         // --- PROCEDURAL AUDIO ENGINE ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let ambientOsc;
@@ -189,7 +204,7 @@
         let playerBody, monsterBody, monsterMesh;
         let cargoItems = [], physicsObjects = [];
         let grabConstraint = null, grabbedBody = null;
-        let lastTime, shiftTime = 180, gameActive = false, canJump = true;
+        let lastTime, shiftTime = config.time, gameActive = false, canJump = true;
         let flashlight, walkTimer = 0;
         let flickerLights = [];
 
@@ -200,8 +215,14 @@
         const uiTimer = document.getElementById('timer'), uiTasks = document.getElementById('tasks');
 
         function init() {
+            // Setup UI for current level
+            document.getElementById('uiLevel').innerText = `TAPE 0${currentLevel}`;
+            document.getElementById('menuLevelDisplay').innerText = `TAPE 0${currentLevel}`;
+            uiTasks.innerText = `QUOTA: 0/${config.boxes}`;
+            uiTimer.innerText = `T-${config.time}s`;
+
             scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x0a0c0a, 0.05); 
+            scene.fog = new THREE.FogExp2(0x0a0c0a, config.fog); // Fog scales with difficulty
 
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
             
@@ -239,7 +260,6 @@
             controls = new THREE.PointerLockControls(camera, document.body);
             
             monsterBody = new CANNON.Body({ mass: 10, shape: new CANNON.Box(new CANNON.Vec3(0.6, 2.2, 0.6)), material: playerMat });
-            // SPAWN FIX: Monster now patrols the center of the map
             monsterBody.position.set(0, 2, 0);
             monsterBody.fixedRotation = true;
             monsterBody.linearDamping = 0.9;
@@ -300,10 +320,14 @@
             const extZone = new THREE.Mesh(new THREE.BoxGeometry(8, 0.2, 8), new THREE.MeshBasicMaterial({ color: 0x55ff55, transparent: true, opacity: 0.2 }));
             extZone.position.set(20, 0.1, 20); scene.add(extZone);
 
-            const cargoSpawns = [[-20, -20], [-20, 20], [20, -20]];
-            for(let i=0; i<3; i++) {
+            const baseSpawns = [[-20, -20], [-20, 20], [20, -20]];
+            
+            // Spawn boxes dynamically based on config
+            for(let i=0; i < config.boxes; i++) {
+                // Distribute evenly among rooms
+                const roomIndex = i % baseSpawns.length; 
                 const b = new CANNON.Body({ mass: 15, shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)), material: mat, linearDamping: 0.5 });
-                b.position.set(cargoSpawns[i][0] + Math.random()*2, 2, cargoSpawns[i][1] + Math.random()*2);
+                b.position.set(baseSpawns[roomIndex][0] + (Math.random()*4 - 2), 4 + i, baseSpawns[roomIndex][1] + (Math.random()*4 - 2));
                 world.addBody(b);
                 const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xaa8833, roughness: 0.9 }));
                 m.castShadow = true; scene.add(m);
@@ -326,9 +350,8 @@
             });
             playerBody.addEventListener("collide", (e) => { if (e.contact.ni.y < -0.5) canJump = true; });
             document.addEventListener('mousedown', tryGrab);
+            
             document.getElementById('startBtn').addEventListener('click', () => controls.lock());
-            document.getElementById('restartBtn').addEventListener('click', () => location.reload());
-
             controls.addEventListener('lock', () => { document.getElementById('menu').style.display = 'none'; if (!gameActive) startGame(); });
         }
 
@@ -340,7 +363,7 @@
             setInterval(() => {
                 if(!gameActive) return;
                 shiftTime--; uiTimer.innerText = `T-${shiftTime}s`;
-                if (shiftTime <= 0) endGame(checkWin());
+                if (shiftTime <= 0) endGame(false, "TIME EXPIRED. EXTRACTION FAILED.");
             }, 1000);
 
             setInterval(() => {
@@ -373,29 +396,23 @@
 
         function updateAI() {
             const dist = monsterBody.position.distanceTo(playerBody.position);
-            
-            // AI FIX: Check if player is actually moving while pressing shift
             const isMoving = Math.abs(playerBody.velocity.x) > 1 || Math.abs(playerBody.velocity.z) > 1;
             const isSprinting = isMoving && keys.shift;
             
-            // STEALTH LOGIC: 
-            // 1. Hears sprinting up to 30 units away.
-            // 2. Sees you if you get within 12 units (regardless of walking).
             if ((dist < 30 && isSprinting) || dist < 12) {
                 const dir = playerBody.position.vsub(monsterBody.position); dir.y = 0; dir.normalize();
                 
-                // Slightly slower than walking speed, so you can outwalk it if careful
-                monsterBody.velocity.x = dir.x * 8.5; 
-                monsterBody.velocity.z = dir.z * 8.5;
+                // Speed scales based on current level configuration
+                monsterBody.velocity.x = dir.x * config.monsterSpeed; 
+                monsterBody.velocity.z = dir.z * config.monsterSpeed;
                 
                 monsterMesh.scale.y = 1 + Math.sin(performance.now() * 0.02) * 0.2; 
-                monsterMesh.material.color.setHex(0x220000); // Glows dark red when hunting
+                monsterMesh.material.color.setHex(0x220000); 
             } else {
-                // Return to idle
                 monsterBody.velocity.x *= 0.9; 
                 monsterBody.velocity.z *= 0.9;
                 monsterMesh.scale.y = 1;
-                monsterMesh.material.color.setHex(0x000000); // Pitch black
+                monsterMesh.material.color.setHex(0x000000); 
             }
 
             monsterMesh.position.copy(monsterBody.position);
@@ -409,18 +426,56 @@
         }
 
         function checkWin() {
+            if (!gameActive) return;
             let secured = 0; const extZoneCenter = new CANNON.Vec3(20, 0, 20);
             cargoItems.forEach(item => { if (item.body.position.distanceTo(extZoneCenter) < 5) secured++; });
-            uiTasks.innerText = `QUOTA: ${secured}/3`;
-            return secured >= 3;
+            uiTasks.innerText = `QUOTA: ${secured}/${config.boxes}`;
+            
+            // Immediate extraction trigger
+            if (secured >= config.boxes) {
+                endGame(true, "QUOTA MET. EVACUATING.");
+            }
         }
 
         function endGame(won, reason = "") {
             gameActive = false; controls.unlock(); if(ambientOsc) ambientOsc.stop();
-            document.getElementById('gameover').style.display = 'flex';
-            document.getElementById('endTitle').innerText = won ? "SURVIVED" : "TAPE ENDED";
-            document.getElementById('endTitle').style.color = won ? "white" : "var(--vcr-red)";
-            document.getElementById('endDesc').innerText = won ? "Cargo Secured." : reason;
+            
+            const gameOverScreen = document.getElementById('gameover');
+            const endTitle = document.getElementById('endTitle');
+            const endDesc = document.getElementById('endDesc');
+            const restartBtn = document.getElementById('restartBtn');
+
+            gameOverScreen.style.display = 'flex';
+            endDesc.innerText = reason;
+
+            if (won) {
+                if (currentLevel < levels.length) {
+                    endTitle.innerText = "TAPE COMPLETED";
+                    endTitle.style.color = "white";
+                    restartBtn.innerText = "PLAY NEXT TAPE >>";
+                    restartBtn.onclick = () => {
+                        sessionStorage.setItem('nightshift_level', currentLevel + 1);
+                        location.reload();
+                    };
+                } else {
+                    endTitle.innerText = "SHIFT SURVIVED";
+                    endTitle.style.color = "var(--safe-color)";
+                    endDesc.innerText = "ALL QUOTAS MET. YOU BEAT THE GAME.";
+                    restartBtn.innerText = "ERASE TAPES & RESTART";
+                    restartBtn.onclick = () => {
+                        sessionStorage.setItem('nightshift_level', 1);
+                        location.reload();
+                    };
+                }
+            } else {
+                endTitle.innerText = "TAPE DESTROYED";
+                endTitle.style.color = "var(--vcr-red)";
+                restartBtn.innerText = "RESTART TAPE 01";
+                restartBtn.onclick = () => {
+                    sessionStorage.setItem('nightshift_level', 1);
+                    location.reload();
+                };
+            }
         }
 
         function animate() {
